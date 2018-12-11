@@ -1,0 +1,206 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+	<meta charset='utf-8' />
+	<title>www.layabox.com</title>
+	<meta name='viewport' content='width=device-width,initial-scale=1.0,minimum-scale=1.0,maximum-scale=1.0,user-scalable=no'
+	/>
+	<meta name="renderer" content="webkit"/>
+	<meta name='apple-mobile-web-app-capable' content='yes' />
+	<meta name='full-screen' content='true' />
+	<meta name='x5-fullscreen' content='true' />
+	<meta name='360-fullscreen' content='true' />
+	<meta name="laya" screenorientation ="landscape"/>
+	<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1"/>
+	<meta http-equiv='expires' content='0' />
+	<meta http-equiv="Cache-Control" content="no-siteapp"/>
+	<meta http-equiv="Cache-Control" content="max-age=7200" />
+	<meta name="viewport" content="width=device-width,initial-scale=1.0,minimum-scale=1.0,maximum-scale=1.0,user-scalable=no">
+	<link href="../bin/css/video-js.min.css" rel="stylesheet">	
+	<script type="text/javascript" src="https://cdn.czbapp.com/multimedia/pre2/course/js/zepto-1.1.6.js"></script>	
+	
+	
+</head>
+
+<style>
+	.div{
+		background-color: #000000;
+		margin: auto;
+		
+	}
+	.button{
+		background-image: url('./res/menu1.png');
+     }
+	 .vedio{
+		 width: 100%;
+		 height: 100%;
+		 display: block;
+		
+	 }
+
+</style>
+<script>
+	var GM = {}; // 全局变量
+	GM.soundFlag = false;  //判断声音是否加载完
+	GM.soundList = []; //存放声音文件
+	GM.IsToken = false;
+	GM.classMode = "1v1"; // 上课模式 0是1v1  1是1v6  
+	GM.flag = 0;//0为本地模式
+	GM.From = 1;//0为Naughty传入的json，1为后端	
+	GM.PageNum = 1;//Naughty传进来的最小为1，所以在room内需要-1再用
+	GM.rootWindow = ""; //web网页端识别
+	GM.rootURL = "";	//web网页端识别
+	GM.isFrameInWeb = false;//是否是网页端
+	GM.AJAX = null;
+	GM.stuNum = []; //答题时存在的学生ID	
+	GM.LIBRARY = ""; //存放所有资源的的数组
+	GM.ImageLibrary = {}; //存放所有图片资源的的数组
+	GM.CDNURL = "https://cdn.czbapp.com/multimedia/pre2/course/";//qiniu
+	GM.VERSION = window.staticVertion || Date.now();//版本号
+	GM.messageList = [];//消息列表
+	//url传参
+	function getUrlParam(name) {		
+		var reg = new RegExp("(^|&)" + name + "=([^&]*)(&|$)"); //构造一个含有目标参数的正则表达式对象
+		var r = decodeURI(window.location.search).substr(1).match(reg); //匹配目标参数
+		if (r != null) return unescape(r[2]);  //返回参数值	
+	}
+	
+	/*
+		目前正式版Naughty没有courseware参数，等加了以后 把下面注释代码放开
+	*/
+    // alert(getUrlParam("courseware"))
+	if(getUrlParam("courseware") == 1){
+		GM.PageNum = parseInt(getUrlParam("pagenum"));
+		//Naughty
+		GM.From = 0; 
+		var GETJSON = JSON.parse(scriptingHelper.jsGetJson());
+		//var GETFileSk = scriptingHelper.jsGetSKBase64();
+		//var GETFilePng = scriptingHelper.jsGetPngBase64();
+
+		GM.role = 0;//  role  0  老师  1  学生
+		GM.roleType;//0是正式学生， 1 是旁听生 
+		GM.senderId = "";
+		GM.vsFrom = "web";
+		GM.userType = "1";	
+	}else if(getUrlParam("couseId")){
+		GM.role = 0;//  role  0  老师  1  学生
+		GM.roleType;//0是正式学生， 1 是旁听生 
+		GM.senderId = "";
+		GM.vsFrom = "web";
+		GM.userType = "1";	
+		GM.location = "location";
+		GM.cwId = getUrlParam("couseId");	
+		GM._url = "https://www.czbapp.com/multimedia/courseware/api/cw/editor/coursewares/"+GM.cwId
+	}
+	else if(getUrlParam("token") && getUrlParam("id")){
+		//s端 新备课系统，目前默认从0页开始。
+		GM.IsToken = false;
+		GM.token = getUrlParam("token"); //接口验证token
+		GM.cwId = getUrlParam("id");		//课件id
+		//后端
+		GM.From = 1;
+		// getDynamicCoursewareById
+		GM._url = "https://tigeradmin.czbapp.com/front/service/api/courseServiceApi/getDynamicCoursewareById?id=" + GM.cwId;
+		var GETJSON = [];
+	}
+	else if(getUrlParam("token") || getUrlParam("userType") || getUrlParam("vsFrom") || getUrlParam("pptID")){
+		//后端
+		GM.From = 1;
+		GM.token = getUrlParam("token"); //接口验证token
+		GM.userType = getUrlParam("userType");//userType 1 是学生 5 是老师 token验证
+		GM.vsFrom = getUrlParam("vsFrom");//接口验证vsFrom
+		GM.cwId = getUrlParam("pptID");		//课件id
+		GM.senderId = getUrlParam("senderId");//用户id
+		GM.roomId = getUrlParam("roomId");//joinroom的roomId
+		GM.nickName = getUrlParam("nickName");	//用户昵称
+		GM.classMode = getUrlParam("classMode");	// 上课模式		
+		GM.roleType = getUrlParam("roleType");   //是否旁听生  0 正式  1 是旁听生
+		GM.flag = Number(getUrlParam("flag"));
+		if(typeof GM.roleType == "number"){
+			GM.roleType = GM.roleType.toString();
+		}
+		GM._url = "https://tigeradmin.czbapp.com/front/service/api/courseServiceApi/getDynamicCoursewareById?id=" + GM.cwId;
+		if(GM.userType & GM.userType == 1){
+			GM.role = 1; //  1是学生
+		}else if(GM.userType == 5) {
+			GM.role = 0; //  0 是老师 
+		}
+		
+	}else{
+		//Naughty
+		// GM.From = 0; 
+		// var GETJSON = JSON.parse(scriptingHelper.jsGetJson());
+		//后端，如果要测试本地data.js数据，把1改为0
+		GM.location = "location";
+		GM.From = 1;
+		// 本地测试数据
+		GM.flag = 0;
+		GM.role = 0;//  role  0  老师  1  学生
+		GM.roleType;//0是正式学生， 1 是旁听生 
+		GM.senderId = "";
+		GM.cwId = "5b62910fd41224105b36855e";	 
+		// GM.vsFrom = "apad";
+		GM.vsFrom = "web";
+		GM.userType = "1";	
+		GM.classMode = "1v6"; 
+		GM.token = "eyJhbGciOiJIUzI1NiJ9.eyJleHQiOjE1MzkyMjE4NTYyNjIsInVpZCI6ImZiNWMwMWQyZjllYjRkMGI4OTRhMGJlYzI3M2MwNzMwIiwiZnJvbSI6IndlYiIsInVzZXJUeXBlIjoxLCJpYXQiOjE1MzY2Mjk4NTYyNjJ9.FUZd0uvuskWcCfRSqjV6JfGpapFuQxm9jhQJC3ShBqM";
+		// GM._url = "https://pre2.yuningwang.com/czb/api2/getDynamicCourseware/5afa8d674b00f62557f73476";
+		// 5b5020d6b0496712080459dd
+		// node 正式服5b9b8c6c16ff0975120d25d5  
+		// node 5b0f4feca9d6a758a7308069  
+		// 5b3dad739a6e2edc4601451c
+		// 5badd5ba34bb2649ae4d780c
+		// 5ba9aed92b8d342c43b6217c
+		// 5b8cdac62b8d342c43aa9468 勇闯魔王城 。不行 31mb 214
+		// 5b8c966f2b8d342c43aa5d73 救援麦斯 ok 30m 253.9
+		// 5b7639ccdb3f8ac8b98d5903  七巧 ok ok  26.9mb 。最好 196.39
+		// 5b8794622b8d342c43a47605 机械王国 。 资源大 。不稳定  33.3mb 资源
+		// 5bac6b4c167497d4ed1ab2da 霓虹国  还可以  30.1mb
+		// 本地课件接口
+		GM._url = "https://www.czbapp.com/multimedia/courseware/api/cw/editor/coursewares/5b9f77262b8d342c43af8b45";	
+			
+	}
+		
+	//  置空console
+	//  console.log = function(){}
+	
+</script>
+
+<body style="cursor:url('./mouseStyle.png'),pointer">
+	
+<!-- 通信 -->
+	
+<!-- 通信 -->
+	<!--以下引用了常用类库，如果不使用，可以删除-->
+	
+	<!--核心包，封装了显示对象渲染，事件，时间管理，时间轴动画，缓动，消息交互,socket，本地存储，鼠标触摸，声音，加载，颜色滤镜，位图字体等-->
+	<script type="text/javascript" src="https://cdn.czbapp.com/multimedia/pre2/course/libs/laya.core.js"></script>
+	<!--提供了微信小游戏的适配-->
+	<script type="text/javascript" src="https://cdn.czbapp.com/multimedia/pre2/course/libs/laya.wxmini.js"></script>
+	<!--封装了webgl渲染管线，如果使用webgl渲染，可以在初始化时调用Laya.init(1000,800,laya.webgl.WebGL);-->
+    <script type="text/javascript" src="https://cdn.czbapp.com/multimedia/pre2/course/libs/laya.webgl.js"></script>
+	<!--是动画模块，包含了swf动画，骨骼动画等-->
+    <script type="text/javascript" src="https://cdn.czbapp.com/multimedia/pre2/course/libs/laya.ani.js"></script>
+	<!--包含更多webgl滤镜，比如外发光，阴影，模糊以及更多-->
+    <script type="text/javascript" src="https://cdn.czbapp.com/multimedia/pre2/course/libs/laya.filter.js"></script>
+	<!--封装了html动态排版功能-->
+    <script type="text/javascript" src="https://cdn.czbapp.com/multimedia/pre2/course/libs/laya.html.js"></script>
+	<!--粒子类库-->
+    <script type="text/javascript" src="https://cdn.czbapp.com/multimedia/pre2/course/libs/laya.particle.js"></script>
+	<!--提供tileMap解析支持-->
+    <script type="text/javascript" src="https://cdn.czbapp.com/multimedia/pre2/course/libs/laya.tiledmap.js"></script>
+
+	<script type="text/javascript" src="https://cdn.czbapp.com/multimedia/pre2/course/libs/laya.d3.js"></script>
+
+	<script type="text/javascript" src="https://cdn.czbapp.com/multimedia/pre2/course/libs/laya.d3Plugin.js"></script>
+	<!--提供了制作UI的各种组件实现-->
+    <script type="text/javascript" src="https://cdn.czbapp.com/multimedia/pre2/course/libs/laya.ui.js"></script>
+	<!--自定义的js(src文件夹下)文件自动添加到下面jsfile模块标签里面里，js的顺序可以手动修改，修改后保留修改的顺序，新增加的js会默认依次追加到标签里-->
+	<!--删除标签，ide不会自动添加js文件，请谨慎操作-->
+
+	<!--<script>document.write("<script src='https://cdn.czbapp.com/multimedia/pre2/course/js/ui/layaUI.max.all.js?v=" + Date.now() + "'><\/script>");</script>-->
+	<script src="../src/ui/layaUI.max.all.js"></script>
+	<script src="../bin/main.js"></script>
+
+	</body>
+</html>
